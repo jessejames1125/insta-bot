@@ -1,6 +1,7 @@
 name: Instagram Bot
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "30 8,14,20,2 * * *"  # Runs at randomized times (±30 min)
 

@@ -3,7 +3,8 @@ name: Instagram Bot
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 8,14,20,2 * * *"  # Runs at randomized times (±30 min)
+    # Example: 05:00, 13:00, and 21:00 UTC daily
+    - cron: "0 5,13,21 * * *"
 
 jobs:
   run-script:
@@ -15,11 +16,12 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install instagrapi schedule pillow
+        # Removed 'schedule' package, added 'pillow' for instagrapi
+        run: pip install instagrapi pillow
       - name: Create config file
-        # Decode the Base64 secret into config.json
+        # Decode Base64 secret into config.json
         run: echo "${{ secrets.CONFIG_B64 }}" | base64 --decode > config.json
-      - name: Verify config file
-        run: cat config.json  # Debugging step to ensure config.json is created
+      - name: Verify config
+        run: cat config.json
       - name: Run bot
         run: python insta_bot.py

@@ -1,13 +1,16 @@
 import json
 import random
 import time
-import schedule
+import sys
 from instagrapi import Client
-from datetime import datetime, timedelta
 
 # Load credentials from config file
-with open("config.json", "r") as f:
-    CONFIG = json.load(f)
+try:
+    with open("config.json", "r") as f:
+        CONFIG = json.load(f)
+except FileNotFoundError:
+    print("❌ 'config.json' not found. Please ensure your secrets are loaded correctly.")
+    sys.exit(1)
 
 # Instagram accounts
 ACCOUNTS = CONFIG["accounts"]
@@ -20,64 +23,67 @@ try:
     with open("followed_users.json", "r") as f:
         FOLLOWED_USERS = json.load(f)
 except FileNotFoundError:
-    FOLLOWED_USERS = {"ig_1": [], "ig_2": []}
+    FOLLOWED_USERS = {account: [] for account in ACCOUNTS}
 
 # Clients dictionary for logged-in sessions
 clients = {}
 
-# Login function
 def login_instagram(account_name):
+    """Logs into a given Instagram account using instagrapi."""
     cl = Client()
     creds = ACCOUNTS[account_name]
     cl.login(creds["username"], creds["password"])
     clients[account_name] = cl
     print(f"✅ Logged in as {account_name}")
 
-# Function to avoid refollowing users
 def save_followed_users():
+    """Saves updated list of followed users to a JSON file."""
     with open("followed_users.json", "w") as f:
         json.dump(FOLLOWED_USERS, f, indent=4)
 
-# Follow and unfollow logic
-def follow_unfollow(account_name):
-    cl = clients.get(account_name)
-    if not cl:
+def follow_unfollow(account_name, max_follows=40):
+    """
+    Follows a limited number of new users from random source accounts.
+    Then unfollows oldest follows when threshold is exceeded.
+    """
+    # 1) Ensure logged in
+    if account_name not in clients:
         login_instagram(account_name)
-        cl = clients[account_name]
+    cl = clients[account_name]
 
     print(f"⚡ Running follow/unfollow for {account_name}")
 
-    # Select a random source account
+    # 2) Pick a random source account
     source_account = random.choice(FOLLOW_SOURCES[account_name])
     print(f"📌 Fetching followers from @{source_account}")
 
-    # Get followers from source account
+    # 3) Fetch up to 100 followers from source
     user_id = cl.user_id_from_username(source_account)
     followers = cl.user_followers(user_id, amount=100)
 
-    # Filter out already-followed users
+    # 4) Filter out already-followed
     new_followers = [uid for uid in followers.keys() if uid not in FOLLOWED_USERS[account_name]]
 
     if not new_followers:
-        print(f"⚠️ No new users to follow for {account_name}. Try different sources.")
+        print(f"⚠️ No new users to follow for {account_name}")
         return
 
-    # Select up to 50 new users to follow
-    to_follow = random.sample(new_followers, min(50, len(new_followers)))
-
+    # 5) Follow up to `max_follows` new users
+    to_follow = random.sample(new_followers, min(max_follows, len(new_followers)))
     for user in to_follow:
         try:
             cl.user_follow(user)
             FOLLOWED_USERS[account_name].append(user)
             print(f"✅ Followed {user}")
-            time.sleep(random.randint(30, 120))  # Random delay
+            # Short random delay between 0.5 and 1.5 seconds
+            time.sleep(random.uniform(0.5, 1.5))
         except Exception as e:
             print(f"❌ Error following {user}: {e}")
 
-    # Save followed users
+    # 6) Save after following
     save_followed_users()
 
-    # Unfollow oldest follows after a certain threshold
+    # 7) Unfollow oldest if list is too long
     if len(FOLLOWED_USERS[account_name]) > 200:
         to_unfollow = FOLLOWED_USERS[account_name][:50]
         for user in to_unfollow:
@@ -85,27 +91,17 @@ def follow_unfollow(account_name):
                 cl.user_unfollow(user)
                 FOLLOWED_USERS[account_name].remove(user)
                 print(f"🚀 Unfollowed {user}")
-                time.sleep(random.randint(30, 120))  # Random delay
+                time.sleep(random.uniform(0.5, 1.5))
             except Exception as e:
                 print(f"❌ Error unfollowing {user}: {e}")
 
-        # Save updates
         save_followed_users()
 
-# Function to schedule tasks with random variation
-def schedule_random(account_name, base_hour):
-    """Schedules job at a randomized time ±30 min from base_hour"""
-    offset = random.randint(-30, 30)  # Random variation in minutes
-    random_time = (datetime.strptime(base_hour, "%H:%M") + timedelta(minutes=offset)).strftime("%H:%M")
-    schedule.every().day.at(random_time).do(lambda: follow_unfollow(account_name))
-    print(f"⏰ Scheduled {account_name} at {random_time}")
+def main():
+    """Executes follow/unfollow once for each account, then exits."""
+    # Adjust max_follows if you want a different daily total
+    for account_name in ACCOUNTS:
+        follow_unfollow(account_name, max_follows=40)
 
-# Schedule 4 tasks per day per account with variation
-for base_time in ["06:00", "12:00", "18:00", "00:00"]:  # Adjust times as needed
-    schedule_random("ig_1", base_time)
-    schedule_random("ig_2", base_time)
-
-# Keep script running
-while True:
-    schedule.run_pending()
-    time.sleep(30)
+if __name__ == "__main__":
+    main()

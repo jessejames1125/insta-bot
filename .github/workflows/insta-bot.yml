@@ -17,6 +17,9 @@ jobs:
       - name: Install dependencies
         run: pip install instagrapi schedule
       - name: Create config file
-        run: echo "${{ secrets.CONFIG_JSON }}" > config.json
+        # Decode the Base64 secret into config.json
+        run: echo "${{ secrets.CONFIG_B64 }}" | base64 --decode > config.json
+      - name: Verify config file
+        run: cat config.json  # Debugging step to ensure config.json is created
       - name: Run bot
         run: python insta_bot.py

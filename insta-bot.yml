@@ -15,5 +15,7 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: pip install instagrapi schedule
+      - name: Create config file
+        run: echo "${{ secrets.CONFIG_JSON }}" > config.json
       - name: Run bot
         run: python insta_bot.py

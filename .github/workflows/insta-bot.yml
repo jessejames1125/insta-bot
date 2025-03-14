@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.9'
       - name: Install dependencies
-        run: pip install instagrapi schedule
+        run: pip install instagrapi schedule pillow
       - name: Create config file
         # Decode the Base64 secret into config.json
         run: echo "${{ secrets.CONFIG_B64 }}" | base64 --decode > config.json
